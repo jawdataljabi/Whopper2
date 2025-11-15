@@ -1,0 +1,3 @@
+pyvirtualcam
+pyttsx3
+numpy
