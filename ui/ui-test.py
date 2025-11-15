@@ -44,6 +44,7 @@ class MainWindow(QWidget):
         layout.addLayout(voice_layout)
         
         speed_layout, self.speed_dropdown = self.create_dropdown("Speed:", ["0.5x", "1x", "1.5x", "2x"], self.on_speed_changed)
+        self.speed_dropdown.setCurrentText("1x")
         layout.addLayout(speed_layout)
                 
        # Hear Voice Sample Button
