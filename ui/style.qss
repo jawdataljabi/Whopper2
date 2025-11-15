@@ -41,3 +41,9 @@ QComboBox::drop-down {
 #start_button_live:hover {
     background-color: #c0392b;
 }
+
+
+#voice_sample_button:hover {
+    background-color: #2980b9;
+}
+

@@ -12,7 +12,7 @@ class MainWindow(QWidget):
         super().__init__()
 
         self.setWindowTitle("Sign Sync")
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(350)
         self.setWindowIcon(QIcon("Logo.png"))
 
         self.init_ui()
@@ -24,6 +24,25 @@ class MainWindow(QWidget):
 
         layout.addLayout(self.create_dropdown("Voice:", ["Voice 1", "Voice 2", "Voice 3"], self.on_voice_changed))
         layout.addLayout(self.create_dropdown("Speed:", ["0.5x", "1x", "1.5x", "2x"], self.on_speed_changed))
+                
+       # Hear Voice Sample Button
+        self.voice_sample_button = QPushButton("Hear Voice Sample")
+        self.voice_sample_button.setFixedHeight(30)
+        self.voice_sample_button.setFixedWidth(150)
+        self.voice_sample_button.setObjectName("voice_sample_button")
+        self.voice_sample_button.clicked.connect(self.play_voice_sample)
+        self.voice_sample_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(self.voice_sample_button)
+
+        layout.addLayout(button_layout)
+
+
+
+        layout.addLayout(self.create_dropdown("NLP interpreter", ["None", "GPT-5"], self.on_nlp_changed))
 
         layout.addItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
@@ -55,6 +74,13 @@ class MainWindow(QWidget):
 
     def on_speed_changed(self, value):
         print("Selected speed:", value)
+
+    def on_nlp_changed(self, value):
+        print("Selected NLP model:", value)
+
+    def play_voice_sample(self):
+        print("Playing voice sample...")
+
 
     def toggle_start_button(self):
         print("toggling start button")
