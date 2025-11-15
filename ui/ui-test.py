@@ -8,6 +8,14 @@ import sys
 import os
 import threading
 
+if sys.platform == "win32":
+    try:
+        import ctypes
+        myappid = 'SignSync.Application.1.0'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception as e:
+        print(f"Warning: Could not set AppUserModelID: {e}")
+
 # Add text-speech directory to path to import tts module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'text-speech'))
 from tts import speak_text, get_voice_id, find_vb_audio_device
@@ -20,7 +28,10 @@ class MainWindow(QWidget):
 
         self.setWindowTitle("Sign Sync")
         self.setMinimumWidth(350)
-        self.setWindowIcon(QIcon("mini_logo.png"))
+        # Get the directory where this script is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(script_dir, "mini_logo.ico")
+        self.setWindowIcon(QIcon(icon_path))
 
         # Store current selections
         self.current_voice_index = 0  # Default to "Man" (index 0)
@@ -323,15 +334,24 @@ class MainWindow(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    icon_path = os.path.join(script_dir, "mini_logo.ico")
+    
+    if not os.path.exists(icon_path):
+        print(f"Warning: Icon file not found at {icon_path}")
+    else:
+        icon = QIcon(icon_path)
+        app.setWindowIcon(icon)
 
     with open("style.qss", "r") as f:
         app.setStyleSheet(f.read())
     
     window = MainWindow()
-    icon = QIcon("mini_logo.ico")
-    app.setWindowIcon(icon)
     
-    window.setWindowIcon(icon)
+    # Also set icon on window (redundant but ensures it's set)
+    if os.path.exists(icon_path):
+        window.setWindowIcon(QIcon(icon_path))
 
     window.show()
 
