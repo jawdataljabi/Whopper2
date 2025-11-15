@@ -135,45 +135,30 @@ def speak_text(text, rate=160, volume=0.9, voice_id=None, sapi_device_index=None
     if voice_id:
         engine.setProperty("voice", voice_id)
     
-    # Set SAPI audio output device
-    if COMTYPES_AVAILABLE:
+    # Set SAPI audio output device (only if explicitly specified)
+    # If sapi_device_index is None, use system default (don't set a specific device)
+    if COMTYPES_AVAILABLE and sapi_device_index is not None:
         try:
-            # Determine which device to use
-            device_to_use = sapi_device_index
+            print(f"[DEBUG] Using explicitly specified SAPI device at index {sapi_device_index}", 
+                  file=sys.stderr, flush=True)
             
-            # If no device specified, try to find CABLE In device (uses cache, required)
-            if device_to_use is None:
-                try:
-                    device_to_use = find_vb_audio_device()
-                    print(f"[DEBUG] Auto-selected CABLE In device at index {device_to_use}", 
-                          file=sys.stderr, flush=True)
-                except RuntimeError as e:
-                    # CABLE In device is required - fail the program
-                    print(f"ERROR: {e}", file=sys.stderr, flush=True)
-                    raise
-            else:
-                print(f"[DEBUG] Using explicitly specified SAPI device at index {device_to_use}", 
+            # Get SAPI audio output tokens using comtypes
+            category = comtypes.client.CreateObject("SAPI.SpObjectTokenCategory")
+            category.SetId("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech\\AudioOutput", False)
+            tokens = category.EnumerateTokens()
+            
+            if 0 <= sapi_device_index < tokens.Count:
+                selected_token = tokens.Item(sapi_device_index)
+                device_description = selected_token.GetDescription()
+                print(f"[DEBUG] Setting SAPI device: [{sapi_device_index}] {device_description}", 
                       file=sys.stderr, flush=True)
-            
-            # Set the device if we have one
-            if device_to_use is not None:
-                # Get SAPI audio output tokens using comtypes
-                category = comtypes.client.CreateObject("SAPI.SpObjectTokenCategory")
-                category.SetId("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech\\AudioOutput", False)
-                tokens = category.EnumerateTokens()
-                
-                if 0 <= device_to_use < tokens.Count:
-                    selected_token = tokens.Item(device_to_use)
-                    device_description = selected_token.GetDescription()
-                    print(f"[DEBUG] Setting SAPI device: [{device_to_use}] {device_description}", 
-                          file=sys.stderr, flush=True)
-                    # Access the SAPI Voice object and set AudioOutput
-                    voice = engine.proxy._driver._tts
-                    voice.AudioOutput = selected_token
-                    print("[DEBUG] SAPI device set successfully", file=sys.stderr, flush=True)
-                else:
-                    print(f"[DEBUG] Warning: Device index {device_to_use} out of range (0-{tokens.Count-1}), using default", 
-                          file=sys.stderr, flush=True)
+                # Access the SAPI Voice object and set AudioOutput
+                voice = engine.proxy._driver._tts
+                voice.AudioOutput = selected_token
+                print("[DEBUG] SAPI device set successfully", file=sys.stderr, flush=True)
+            else:
+                print(f"[DEBUG] Warning: Device index {sapi_device_index} out of range (0-{tokens.Count-1}), using default", 
+                      file=sys.stderr, flush=True)
         except Exception as e:
             # If device selection fails, continue with default device
             print(f"[DEBUG] Warning: Could not set SAPI device: {e}", 
@@ -187,42 +172,52 @@ def speak_text(text, rate=160, volume=0.9, voice_id=None, sapi_device_index=None
 
 
 def main():
-    """Main function that reads from stdin and speaks text."""
+    """Main function that prompts for input and speaks text directly."""
+    # List SAPI devices if available
+    sapi_devices = list_sapi_devices()
+    sapi_device_index = None
+    
+    if sapi_devices:
+        print("\nSelect SAPI audio output device:")
+        print("  Enter device number (e.g., '0', '1', '2')")
+        print("  Or press Enter to use default device")
+        device_choice = input("Device index (or Enter for default): ").strip()
+        
+        if device_choice:
+            try:
+                device_index = int(device_choice)
+                if 0 <= device_index < len(sapi_devices):
+                    sapi_device_index = device_index
+                    print(f"Selected: [{device_index}] {sapi_devices[device_index][2]}")
+                else:
+                    print(f"Invalid device number, using default device")
+            except ValueError:
+                print(f"Invalid input, using default device")
+        else:
+            print("Using default SAPI audio device")
+    else:
+        print("SAPI device selection not available (comtypes not installed)")
+    
     # Get voice ID at startup
+    print("\nSelecting TTS voice...")
     voice_id = get_voice_id(1)
     
-    print("TTS process started, waiting for input...", file=sys.stderr, flush=True)
+    print("\nTTS ready. Enter text to speak (or 'exit' to quit)")
     
     while True:
         try:
-            # readline() will block until a newline is received or EOF
-            print("Waiting for input...", file=sys.stderr, flush=True)
-            text = sys.stdin.readline()
-            print(f"Received: {repr(text)}", file=sys.stderr, flush=True)
-            
-            if not text:  # EOF - pipe is closed, exit
-                print("EOF detected, exiting", file=sys.stderr, flush=True)
+            user_input = input("Enter text to send (or 'exit' to quit): ")
+            if user_input.lower() == 'exit':
                 break
             
-            text = text.strip()
-            if text:  # Only speak non-empty lines
-                print(f"Speaking: {text}", file=sys.stderr, flush=True)
-                speak_text(text, voice_id=voice_id)
-                print("Finished speaking", file=sys.stderr, flush=True)
+            if user_input.strip():
+                print(f"Speaking: {user_input}")
+                speak_text(user_input, voice_id=voice_id, sapi_device_index=sapi_device_index)
+                print("Finished speaking")
                 
         except KeyboardInterrupt:
-            print("KeyboardInterrupt, exiting", file=sys.stderr, flush=True)
+            print("\nExiting.")
             break
-        except (EOFError, BrokenPipeError) as e:
-            # On EOF or broken pipe, exit
-            print(f"Pipe error: {e}, exiting", file=sys.stderr, flush=True)
-            break
-        except Exception as e:
-            # Log other exceptions but continue
-            print(f"Error: {e}", file=sys.stderr, flush=True)
-            import traceback
-            traceback.print_exc(file=sys.stderr)
-            continue
 
 
 if __name__ == "__main__":
