@@ -65,7 +65,7 @@ class MainWindow(QWidget):
         self.main_layout = None
 
         self.current_voice_index = 0
-        self.current_speed = "1x"
+        self.current_speed = "0.75x"
         self.current_nlp_model = "gpt-4o-mini"
         self.voice_dropdown = None
         self.speed_dropdown = None
@@ -147,8 +147,8 @@ class MainWindow(QWidget):
         voice_layout, self.voice_dropdown = self.create_dropdown("Voice:", ["Man", "Woman"], self.on_voice_changed)
         content_layout.addLayout(voice_layout)
         
-        speed_layout, self.speed_dropdown = self.create_dropdown("Speed:", ["0.5x", "1x", "1.5x", "2x"], self.on_speed_changed)
-        self.speed_dropdown.setCurrentText("1x")
+        speed_layout, self.speed_dropdown = self.create_dropdown("Speed:", ["0.5x", "0.75x", "1x", "1.5x", "2x"], self.on_speed_changed)
+        self.speed_dropdown.setCurrentText("0.75x")
         content_layout.addLayout(speed_layout)
         
         self.voice_sample_button = QPushButton("Hear Voice Sample")

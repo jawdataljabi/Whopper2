@@ -122,12 +122,12 @@ def get_voice_id(voice_index=1):
     return voice_id
 
 
-def speak_text(text, rate=160, volume=0.9, voice_id=None, sapi_device_index=None):
+def speak_text(text, rate=120, volume=0.9, voice_id=None, sapi_device_index=None):
     """Speak the given text using TTS.
     
     Args:
         text: String containing the sentence to speak
-        rate: Words per minute (default: 160)
+        rate: Words per minute (default: 120, which is 0.75x of normal 160 WPM)
         volume: Volume level 0.0 to 1.0 (default: 0.9)
         voice_id: Voice ID to use (default: None, uses default voice)
         sapi_device_index: SAPI audio output device index (default: None, auto-finds VB-Audio or uses default)

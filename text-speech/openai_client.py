@@ -58,7 +58,7 @@ def get_client(api_key=None):
     return _client
 
 
-def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7, system_message=None, voice_index=1, rate=160, sapi_device_index=None):
+def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7, system_message=None, voice_index=1, rate=120, sapi_device_index=None):
     """Send a prompt to OpenAI with streaming, collect the full response, then speak it all at once.
     
     Args:
@@ -67,7 +67,7 @@ def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7
         temperature: Sampling temperature 0.0-2.0 (default: 0.7)
         system_message: Optional system message to set context
         voice_index: Voice index to use for TTS (default: 1)
-        rate: Speech rate for TTS (default: 160)
+        rate: Speech rate for TTS in words per minute (default: 120, which is 0.75x of normal 160 WPM)
         sapi_device_index: SAPI audio output device index (default: None, uses system default)
     
     Returns:
