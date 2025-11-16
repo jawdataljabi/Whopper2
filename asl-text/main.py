@@ -2,6 +2,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import tensorflow as tf
+import pyvirtualcam
 
 # 1. Initialize MediaPipe Holistic and OpenCV VideoCapture
 mp_holistic = mp.solutions.holistic
@@ -13,6 +14,11 @@ holistic = mp_holistic.Holistic(
 )
 
 cap = cv2.VideoCapture(0)
+
+# Get video properties for virtual camera
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+fps = int(cap.get(cv2.CAP_PROP_FPS) or 30)
 
 # 2. Load your trained LSTM model
 model = tf.keras.models.load_model("good4.keras")
@@ -85,121 +91,135 @@ def extract_keypoints(results):
 
 
 # 7. Live loop
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
+try:
+    with pyvirtualcam.Camera(width=width, height=height, fps=fps) as cam:
+        print("Virtual camera:", cam.device)
+        print("Press Ctrl+C to exit")
+        
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            cam.send(frame)
+            cam.sleep_until_next_frame()
 
-    frame = cv2.flip(frame, 1)
+            frame = cv2.flip(frame, 1)
 
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    image.flags.writeable = False
-    results = holistic.process(image)
-    image.flags.writeable = True
-    frame = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image.flags.writeable = False
+            results = holistic.process(image)
+            image.flags.writeable = True
+            frame = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-    # Draw landmarks (optional)
-    if results.pose_landmarks:
-        mp_draw.draw_landmarks(
-            frame,
-            results.pose_landmarks,
-            mp_holistic.POSE_CONNECTIONS,
-        )
-    if results.left_hand_landmarks:
-        mp_draw.draw_landmarks(
-            frame,
-            results.left_hand_landmarks,
-            mp_holistic.HAND_CONNECTIONS,
-        )
-    if results.right_hand_landmarks:
-        mp_draw.draw_landmarks(
-            frame,
-            results.right_hand_landmarks,
-            mp_holistic.HAND_CONNECTIONS,
-        )
+            # Draw landmarks (optional)
+            if results.pose_landmarks:
+                mp_draw.draw_landmarks(
+                    frame,
+                    results.pose_landmarks,
+                    mp_holistic.POSE_CONNECTIONS,
+                )
+            if results.left_hand_landmarks:
+                mp_draw.draw_landmarks(
+                    frame,
+                    results.left_hand_landmarks,
+                    mp_holistic.HAND_CONNECTIONS,
+                )
+            if results.right_hand_landmarks:
+                mp_draw.draw_landmarks(
+                    frame,
+                    results.right_hand_landmarks,
+                    mp_holistic.HAND_CONNECTIONS,
+                )
 
-    # Extract keypoints and update sequence buffer
-    keypoints = extract_keypoints(results)
-    sequence.append(keypoints)
-    if len(sequence) > sequence_length:
-        sequence.pop(0)
+            # Extract keypoints and update sequence buffer
+            keypoints = extract_keypoints(results)
+            sequence.append(keypoints)
+            if len(sequence) > sequence_length:
+                sequence.pop(0)
 
-    frame_index += 1
+            frame_index += 1
 
-    # Only run prediction when we have a full window and match the stride
-    if len(sequence) == sequence_length and frame_index % PREDICTION_STRIDE == 0:
-        sequence_input = np.array(sequence, dtype=np.float32).reshape(
-            1, sequence_length, 258,
-        )
+            # Only run prediction when we have a full window and match the stride
+            if len(sequence) == sequence_length and frame_index % PREDICTION_STRIDE == 0:
+                sequence_input = np.array(sequence, dtype=np.float32).reshape(
+                    1, sequence_length, 258,
+                )
 
-        raw_probs = model.predict(sequence_input, verbose=0)[0]  # (num_classes,)
+                raw_probs = model.predict(sequence_input, verbose=0)[0]  # (num_classes,)
 
-        # Update buffer of recent probability vectors
-        predictions_buffer.append(raw_probs)
-        if len(predictions_buffer) > SMOOTHING_WINDOW:
-            predictions_buffer.pop(0)
+                # Update buffer of recent probability vectors
+                predictions_buffer.append(raw_probs)
+                if len(predictions_buffer) > SMOOTHING_WINDOW:
+                    predictions_buffer.pop(0)
 
-        # Compute smoothed probabilities
-        smoothed_probs = np.mean(predictions_buffer, axis=0)
-        best_class = int(np.argmax(smoothed_probs))
-        best_conf = float(smoothed_probs[best_class])
+                # Compute smoothed probabilities
+                smoothed_probs = np.mean(predictions_buffer, axis=0)
+                best_class = int(np.argmax(smoothed_probs))
+                best_conf = float(smoothed_probs[best_class])
 
-        # Either show a gesture or "no gesture" based on confidence
-        if best_conf >= CONFIDENCE_THRESHOLD:
-            stable_label = best_class
-        else:
-            stable_label = None
+                # Either show a gesture or "no gesture" based on confidence
+                if best_conf >= CONFIDENCE_THRESHOLD:
+                    stable_label = best_class
+                else:
+                    stable_label = None
 
-        # 8. Sentence logic: edge detection on stable_label
-        if stable_label != last_stable_label:
-            # Rising edge on Gesture_1: add a token to buffer
-            if stable_label == 1:
-                # You can push whatever token you want: class index, label string, etc.
-                sentence_buffer.append("six-seven")
+                # 8. Sentence logic: edge detection on stable_label
+                if stable_label != last_stable_label:
+                    # Rising edge on Gesture_1: add a token to buffer
+                    if stable_label == 1:
+                        # You can push whatever token you want: class index, label string, etc.
+                        sentence_buffer.append("six-seven")
 
-            # Rising edge on Gesture_0 or None: send and clear buffer
-            # elif stable_label == 0:
-            elif not stable_label:
-                if sentence_buffer:
-                    handle_sentence(sentence_buffer)
-                    sentence_buffer.clear()
+                    # Rising edge on Gesture_0 or None: send and clear buffer
+                    # elif stable_label == 0:
+                    elif not stable_label:
+                        if sentence_buffer:
+                            handle_sentence(sentence_buffer)
+                            sentence_buffer.clear()
 
-            # Update last_stable_label after handling edges
-            last_stable_label = stable_label
+                    # Update last_stable_label after handling edges
+                    last_stable_label = stable_label
 
-    # Display the current stable label or "no gesture"
-    if stable_label is None:
-        label_str = "..."
-    else:
-        label_str = CLASS_LABELS.get(stable_label, str(stable_label))
+            # Display the current stable label or "no gesture"
+            if stable_label is None:
+                label_str = "..."
+            else:
+                label_str = CLASS_LABELS.get(stable_label, str(stable_label))
 
-    label_text = f"Prediction: {label_str}"
-    cv2.putText(
-        frame,
-        label_text,
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (0, 255, 0),
-        2,
-    )
+            label_text = f"Prediction: {label_str}"
+            cv2.putText(
+                frame,
+                label_text,
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 255, 0),
+                2,
+            )
 
-    # Show the buffer contents for debugging
-    buffer_text = "Buffer: " + " ".join(str(t) for t in sentence_buffer)
-    cv2.putText(
-        frame,
-        buffer_text,
-        (10, 70),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (0, 255, 255),
-        2,
-    )
+            # Show the buffer contents for debugging
+            buffer_text = "Buffer: " + " ".join(str(t) for t in sentence_buffer)
+            cv2.putText(
+                frame,
+                buffer_text,
+                (10, 70),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2,
+            )
 
-    cv2.imshow("ASL Gesture Recognition", frame)
-
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
+            # Display the frame in a window
+            cv2.imshow("ASL Gesture Recognition", frame)
+            
+            # Convert BGR to RGB for virtual camera
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Check for 'q' key to exit
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+except KeyboardInterrupt:
+    print("\nExiting...")
+finally:
+    cap.release()
+    cv2.destroyAllWindows()
