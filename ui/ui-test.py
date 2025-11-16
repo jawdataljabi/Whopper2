@@ -562,7 +562,21 @@ class MainWindow(QWidget):
         # Run API call and TTS in background thread to avoid blocking UI
         def process_and_speak():
             try:
-                send_prompt_and_speak_streaming(sentence_text, voice_index=self.current_voice_index, sapi_device_index=self.cable_in_device_index)
+                rate = self._calculate_rate()
+                voice_id = self.current_voice_id or get_voice_id(self.current_voice_index)
+                
+                # If no NLP model is set, just speak the text directly
+                if self.current_nlp_model is None:
+                    speak_text(sentence_text, rate=rate, voice_id=voice_id, sapi_device_index=self.cable_in_device_index)
+                else:
+                    # Use NLP model to process and then speak
+                    send_prompt_and_speak_streaming(
+                        sentence_text, 
+                        model=self.current_nlp_model,
+                        voice_index=self.current_voice_index, 
+                        rate=rate, 
+                        sapi_device_index=self.cable_in_device_index
+                    )
             except Exception as e:
                 print(f"Error processing and speaking: {e}")
                 import traceback

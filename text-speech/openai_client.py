@@ -58,7 +58,7 @@ def get_client(api_key=None):
     return _client
 
 
-def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7, system_message=None, voice_index=1, sapi_device_index=None):
+def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7, system_message=None, voice_index=1, rate=160, sapi_device_index=None):
     """Send a prompt to OpenAI with streaming, collect the full response, then speak it all at once.
     
     Args:
@@ -67,6 +67,7 @@ def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7
         temperature: Sampling temperature 0.0-2.0 (default: 0.7)
         system_message: Optional system message to set context
         voice_index: Voice index to use for TTS (default: 1)
+        rate: Speech rate for TTS (default: 160)
         sapi_device_index: SAPI audio output device index (default: None, uses system default)
     
     Returns:
@@ -80,8 +81,6 @@ def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7
     Raises:
         ValueError: If the model is invalid and cannot be defaulted
     """
-    global _voice_id
-    
     # Validate and default model if necessary
     if model is None or not is_valid_model(model):
         if model is not None:
@@ -97,9 +96,8 @@ def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7
     
     client = get_client()
     
-    # Pre-initialize voice ID to avoid delay during streaming
-    if _voice_id is None:
-        _voice_id = get_voice_id(voice_index)
+    # Get voice ID from the passed voice_index (always use current voice, not cached)
+    current_voice_id = get_voice_id(voice_index)
     
     # Prepare messages
     messages = []
@@ -138,7 +136,7 @@ def send_prompt_and_speak_streaming(prompt, model="gpt-4o-mini", temperature=0.7
     if full_response.strip():
         first_speech_start = time.time()
         speak_start = time.time()
-        speak_text(full_response.strip(), voice_id=_voice_id, sapi_device_index=sapi_device_index)
+        speak_text(full_response.strip(), rate=rate, voice_id=current_voice_id, sapi_device_index=sapi_device_index)
         speak_end = time.time()
         last_speech_end = speak_end
     
